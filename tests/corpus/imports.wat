@@ -1,0 +1,10 @@
+(module
+  (import "env" "log" (func $log (param i32)))
+  (import "env" "now" (func $now (result i64)))
+  (import "env" "mem" (memory 1 2))
+  (import "env" "base" (global $base i32))
+  (func $helper (import "env" "helper") (param i32 i32) (result i32))
+  (func (export "run") (param $x i32) (result i32)
+    (call $log (local.get $x))
+    (call $helper (local.get $x) (global.get $base)))
+  (func (export "stamp") (result i64) (call $now)))

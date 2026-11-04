@@ -1,0 +1,12 @@
+(module
+  (global $counter (mut i32) (i32.const 0))
+  (global $big i64 (i64.const -9223372036854775808))
+  (global $pi f64 (f64.const 3.14159265358979))
+  (global (export "limit") i32 (i32.const 100))
+  (func (export "next") (result i32)
+    (global.set $counter (i32.add (global.get $counter) (i32.const 1)))
+    (global.get $counter))
+  (func (export "big") (result i64) (global.get $big))
+  (func (export "pi") (result f64) (global.get $pi))
+  (func (export "reset") (global.set $counter (i32.const 0)))
+  (export "counter" (global $counter)))
