@@ -3,10 +3,11 @@
 A WebAssembly interpreter written from scratch in Nim, with no dependencies
 beyond the standard library.
 
-**Status: work in progress.** Decoding, encoding, text parsing, validation and
-execution work; the command-line tool is the next commit.
+It decodes, assembles, validates, runs and disassembles WebAssembly 1.0 modules
+(plus sign-extension, saturating truncation, multi-value and bulk
+`memory.copy`/`memory.fill`), and ships a small command-line tool.
 
-## What exists so far
+## Features
 
 - LEB128 reader/writer with the strict checks the spec requires (overlong
   encodings, unused bits, UTF-8 validated names).
@@ -26,11 +27,37 @@ execution work; the command-line tool is the next commit.
 - An interpreter (`instantiate`, `call`, `invoke`) with host imports, shared
   memories/tables/globals, a start function, bounds-checked segments, and every
   trap the spec defines. Traps are ordinary exceptions (`Trap` with a `kind`).
-  Call depth is capped, and an optional fuel budget (`callWithFuel`) stops runaway
+  Call depth is capped (3000 frames in release builds, 400 in unoptimised ones
+  so the native stack stays within 8 MB), and an optional fuel budget (`callWithFuel`) stops runaway
   loops.
+- A disassembler (`disassemble`) that prints any module as flat WAT with numeric
+  indices. Floats keep their exact bits (`nan:0x...`, `inf`), and the output
+  assembles back to the same bytes. It must be given a module as decoded or
+  parsed, not one that `validate` has rewritten in place (`instantiate` validates
+  a private copy, so instances are always safe).
+- A command-line tool (`src/wasmnim/cli.nim`, see below).
 - A corpus of WAT programs in `tests/corpus/`. The tests assemble each one with
   `parseWat` and check the result against the bytes the reference assembler in
   wasmtime produces (`tests/gen_corpus.py` regenerates the expected bytes).
+
+## Command line
+
+```
+make build                      # writes bin/wasmnim
+bin/wasmnim run --invoke fib_iter tests/corpus/fib.wat 30    # 832040:i64
+bin/wasmnim wat2wasm prog.wat -o prog.wasm
+bin/wasmnim wasm2wat prog.wasm
+bin/wasmnim validate prog.wasm  # prints "ok" or the first error
+bin/wasmnim dump prog.wasm      # types, imports, exports, memories
+```
+
+`run` accepts `.wasm` or `.wat` files (detected from the first bytes), parses
+arguments by the parameter types of the function (decimal, `0x` hex, negative,
+`1_000` separators, floats), and prints results as `value:type`. Without
+`--invoke` it calls `_start` or `main`, and otherwise lists the exports. `--fuel N`
+limits executed branches and calls. Modules may import `env.print_i32`,
+`print_i64`, `print_f32`, `print_f64` (one line each) and `env.putc`.
+A trap prints `trap: <reason>` and exits with status 1; usage errors exit 2.
 
 ## Using it as a library
 
@@ -74,6 +101,14 @@ many values to keep and the height to unwind to. The main loop is then a flat
 - `test_differential`: replays 2,400+ recorded argument/result pairs from
   wasmtime (`tests/gen_exec_fixtures.py` regenerates them), comparing results
   bit for bit and traps as traps.
+
+- `test_fuzz`: decodes every prefix of every corpus module, thousands of
+  mutated, inserted, deleted and random byte strings, and mutated WAT sources.
+  Whatever the input, only a `WasmError` may escape, and anything that
+  validates is instantiated and its exports run under a fuel limit.
+- `test_disasm` and `test_cli`: WAT to text to bytes round trips on every corpus
+  program, exact float printing, and the command line's output and exit codes.
+- `test_leb`, `test_decode`, `test_wat`: the lower layers in isolation.
 
 ## Running the tests
 

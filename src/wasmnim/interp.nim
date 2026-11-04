@@ -9,7 +9,9 @@ import std/[math, bitops]
 import types, errors, values, store
 
 const
-  maxCallDepth* = 3000
+  # Each wasm call is one native `execFunc` frame. Unoptimised builds use far
+  # bigger frames, so the limit is lower there to stay inside an 8 MB stack.
+  maxCallDepth* = when defined(release) or defined(danger): 3000 else: 400
   maxStackSlots = 1 shl 22
 
 type
